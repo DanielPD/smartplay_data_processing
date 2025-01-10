@@ -1,5 +1,4 @@
-# Project Title
-Bluetooth Closeness and Answers Data Processing
+# SmartPlay - Bluetooth Closeness and Answers Data Processing
 
 ## Description
 This project is a component of the SmartPlay initiative, which involves distributing smartwatches to participants. These smartwatches periodically prompt users with questions regarding their current feelings. The objective is to correlate the participants' responses with specific locations (identified via Bluetooth beacons) and their social interactions (measured through closeness scores). This script represents an initial attempt to visualize the data collected from multiple smartwatches.
