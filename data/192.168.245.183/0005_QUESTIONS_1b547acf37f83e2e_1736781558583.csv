@@ -1,0 +1,13 @@
+timestamp,questionID,questionText,answer
+1736781619057,1,Ready to go?,ASKED
+1736781630419,1,Ready to go?,❌ No
+1736781679050,2,How does it feel?,ASKED
+1736781799044,3,Do you like being here?,ASKED
+1736781919052,2,How does it feel?,ASKED
+1736782037254,2,How does it feel?,🪷 Calm
+1736782039054,3,Do you like being here?,ASKED
+1736782113957,3,Do you like being here?,Hmmmm
+1736782159054,2,How does it feel?,ASKED
+1736782208453,2,How does it feel?,🤯 Chaotic
+1736782279043,3,Do you like being here?,ASKED
+1736782357997,3,Do you like being here?,Yes!
