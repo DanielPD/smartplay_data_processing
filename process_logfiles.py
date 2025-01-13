@@ -5,8 +5,8 @@ import os
 DATA_DIR = 'data'
 CLOSENESS_OUTPUT_FILE='closeness_scores.csv'
 ANSWERS_OUTPUT_FILE='beacon_answers.csv'
-SMARTWATCH_BT_ADDR_WHITELIST = ['54:08:3B:C4:FC:64','51:62:7F:43:DA:1A','3E:EE:A1:BF:47:DE','29:5A:3F:E1:97:2B','74:40:BB:C2:DF:46','28:D3:3E:0A:80:93','4E:8A:2B:9E:F9:42']
-BEACON_BT_ADDR = ['4F:F5:6C:BE:F6:6F','46:F2:0D:E2:A1:62','A8:80:55:52:59:89']
+SMARTWATCH_BT_ADDR_WHITELIST = ['49:C6:9F:9F:62:8D','6E:4C:8D:9B:AD:6B','5B:82:E2:0C:0C:C0','68:C5:BE:7A:EC:C3','73:93:2F:43:7E:26','55:1A:39:67:D6:42','50:CA:24:F7:E0:D3','6E:2A:50:B1:32:EA','AC:80:FB:30:25:FB','70:8F:13:71:A8:6D','64:7E:C2:DF:48:5D','5D:DC:5D:24:D7:2F','4b:1a:24:ea:2e:6c','51:5e:d0:64:75:26','78:76:07:a8:50:3d','68:55:72:AC:67:C4','68:6B:78:CB:6D:8D','61:41:25:18:A0:FF','40:0E:19:95:AF:8C','55:C6:02:C7:03:1D','4B:63:A1:DF:24:2E','4C:6D:CD:79:12:3A']
+BEACON_BT_ADDR = ['D5:0e:84:34:3A:3A','ED:E3:26:AF:5C:FE','E7:97:7E:A8:E3:F1','e0:df:98:16:0f:75','C7:75:AB:1D:6A:DE','DA:74:E4:CA:D5:8F']
 
 def get_all_csv_files(directory, filename_pattern):
     """Recursively get all csv files in a directory that contain the provided pattern somewhere in the filename"""
