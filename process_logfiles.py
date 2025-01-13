@@ -1,12 +1,13 @@
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 DATA_DIR = 'data'
 CLOSENESS_OUTPUT_FILE='closeness_scores.csv'
 ANSWERS_OUTPUT_FILE='beacon_answers.csv'
-SMARTWATCH_BT_ADDR_WHITELIST = ['49:C6:9F:9F:62:8D','6E:4C:8D:9B:AD:6B','5B:82:E2:0C:0C:C0','68:C5:BE:7A:EC:C3','73:93:2F:43:7E:26','55:1A:39:67:D6:42','50:CA:24:F7:E0:D3','6E:2A:50:B1:32:EA','AC:80:FB:30:25:FB','70:8F:13:71:A8:6D','64:7E:C2:DF:48:5D','5D:DC:5D:24:D7:2F','4b:1a:24:ea:2e:6c','51:5e:d0:64:75:26','78:76:07:a8:50:3d','68:55:72:AC:67:C4','68:6B:78:CB:6D:8D','61:41:25:18:A0:FF','40:0E:19:95:AF:8C','55:C6:02:C7:03:1D','4B:63:A1:DF:24:2E','4C:6D:CD:79:12:3A']
-BEACON_BT_ADDR = ['D5:0e:84:34:3A:3A','ED:E3:26:AF:5C:FE','E7:97:7E:A8:E3:F1','e0:df:98:16:0f:75','C7:75:AB:1D:6A:DE','DA:74:E4:CA:D5:8F']
+BEACON_BT_ADDR = ['D5:0E:84:34:3A:3A','ED:E3:26:AF:5C:FE','E7:97:7E:48:E3:F1','E0:DF:98:16:0C:75','C7:75:AB:1D:6A:DE','DA:74:E4:CA:D5:8F']
+BEACON_VISIT_WINDOW = 60 # seconds
+BLE_ADDR_FILE = 'devices.csv'
 
 def get_all_csv_files(directory, filename_pattern):
     """Recursively get all csv files in a directory that contain the provided pattern somewhere in the filename"""
@@ -16,6 +17,29 @@ def get_all_csv_files(directory, filename_pattern):
             if file.endswith('.csv') and filename_pattern in file:
                 csv_files.append(os.path.join(root, file))
     return csv_files
+
+def read_device_addr_csv(file_path):
+    """Read a csv file with bluetooth device data and return a dictionary that maps device names to their BLE addresses"""
+    devices = {}
+    with open(file_path, mode='r') as file:
+        csv_reader = csv.reader(file)
+        next(csv_reader)  # Skip header row
+        for row in csv_reader:
+            timestamp, name, address = row
+            name = name.split('(')[-1].split(')')[0]
+            if name in devices:
+                devices[name].add(address)
+            else:
+                devices[name] = {address}
+    return devices
+
+def invert_device_addr_lut(devices):
+    """Invert the look-up-table that maps device names to their BLE addresses"""
+    inverted = {}
+    for name, addresses in devices.items():
+        for address in addresses:
+            inverted[address] = name
+    return inverted
 
 def read_bluetooth_csv(file_path):
     """Read a csv file with bluetooth data and return a list of dictionaries with the unprocessed data of which bluetooth devices were detected at which timestamp"""
@@ -58,12 +82,15 @@ def parse_bluetooth_data(data):
 
 def calc_cumulative_closeness_score(data):
     """Calculate the time-in-range and cumulative 'closeness' score for each device in the data"""
+    addr_lut = invert_device_addr_lut(read_device_addr_csv(BLE_ADDR_FILE))
+
     closeness_scores = {}
     for row in data:
-        for device, signal_strength in row['devices'].items():
-            if device not in SMARTWATCH_BT_ADDR_WHITELIST:
+        for addr, signal_strength in row['devices'].items():
+            if addr not in addr_lut:
                 continue
             
+            device = addr_lut[addr]
             if device in closeness_scores:
                 closeness_scores[device]["RSSI"] += signal_strength
                 closeness_scores[device]["TIR"] += 1
@@ -78,43 +105,64 @@ def calc_cumulative_closeness_score(data):
                 )
     return closeness_scores
 
-def extract_beacon_visits(data):
-    """Extract all visits to beacons from the bluetooth data, only keeping the first and last timestamp"""
-    beacons = {}
-    for row in data:
+def extract_beacon_visits(bt_data):
+    beacons = []
+
+    for row in bt_data:
+        devices = {}
+        for device, signal_strength in row['devices'].items():
+            if device not in BEACON_BT_ADDR:
+                continue
+            
+            devices[device] = signal_strength
+            print(f"Beacon {device} was in range with signal strength {signal_strength} at {row['timestamp']}")
+
+        if len(devices) > 0:
+            beacons.append({
+                'timestamp': row['timestamp'],
+                'devices': devices
+            })
+
+    return beacons
+
+def search_beacon_visits(beacons_data, timestamp):
+    """Search the beacons that were in range around the given timestamp"""
+    beacons = []
+    for row in beacons_data:
         for device, signal_strength in row['devices'].items():
             if device not in BEACON_BT_ADDR:
                 continue
 
-            if device in beacons:
-                if row['timestamp'] < beacons[device]['first_seen']:
-                    beacons[device]['first_seen'] = row['timestamp']
-                if row['timestamp'] > beacons[device]['last_seen']:
-                    beacons[device]['last_seen'] = row['timestamp']
-            else:
-                beacons[device] = {
-                    'first_seen': row['timestamp'],
-                    'last_seen': row['timestamp']
-                }
+            if device not in beacons:
+                lower_time = timestamp - timedelta(seconds=BEACON_VISIT_WINDOW)
+                upper_time = timestamp + timedelta(seconds=BEACON_VISIT_WINDOW)
+                if row['timestamp'] >= lower_time and row['timestamp'] <= upper_time:
+                    beacons.append(device)
     return beacons
 
-def add_answers_to_beacons(beacons, answers):
+
+def add_answers_to_beacons(beacons_data, answers):
     """Add the answers to the beacons that were in range when the answer was given"""
+    beacons_answers = {}
     for answer in answers:
         if answer['answer'] == 'ASKED':
             continue
         
-        for beacon_id, visit in beacons.items():
-            if visit['first_seen'] < answer['timestamp'] < visit['last_seen']:
-                if 'answers' not in beacons[beacon_id]:
-                    beacons[beacon_id]['answers'] = []
-                beacons[beacon_id]['answers'].append(answer)
-    return beacons
+        beacons_in_range = search_beacon_visits(beacons_data, answer['timestamp'])
+        for beacon in beacons_in_range:
+            if beacon not in beacons_answers:
+                beacons_answers[beacon] = {}
+            if 'answers' not in beacons_answers[beacon]:
+                beacons_answers[beacon]['answers'] = []
+
+            beacons_answers[beacon]['answers'].append(answer)
+    return beacons_answers
 
 def main():
     """Main function that processes all data and stores the results in csv files"""	
+    
     closeness_scores = {}
-    beacon_answers = {}
+    beacons_answers = {}
 
     smartwatch_ids = next(os.walk(DATA_DIR))[1]
     for id in smartwatch_ids:
@@ -138,8 +186,8 @@ def main():
             answers_data += read_answers_csv(file_path)
 
         # Now combine the bluetooth data with the answers data, storing which answers were given when a beacon was in range
-        beacon_visits = extract_beacon_visits(bluetooth_data)
-        beacon_answers[id] = add_answers_to_beacons(beacon_visits, answers_data)
+        beacons_data = extract_beacon_visits(bluetooth_data)
+        beacons_answers[id] = add_answers_to_beacons(beacons_data, answers_data)
         
     # Finally store the results in csv files
     with open(CLOSENESS_OUTPUT_FILE, mode='w', newline='') as file:
@@ -153,7 +201,7 @@ def main():
     with open(ANSWERS_OUTPUT_FILE, mode='w', newline='', encoding="utf8") as file:
         writer = csv.writer(file)
         writer.writerow(['watch_id','beacon_id', 'questionID', 'questionText', 'answer'])
-        for id,beacons in beacon_answers.items():
+        for id,beacons in beacons_answers.items():
             for beacon_id, visit in beacons.items():
                 if 'answers' not in visit:
                     continue
